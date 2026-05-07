@@ -9,7 +9,7 @@
 // For local dev: http://localhost:5000
 const API_BASE = window.location.hostname === "localhost"
   ? "http://localhost:5000"
-  : "https://your-api.onrender.com";   // ← update after deploying
+  : "https://twitter-sentiment-analysis-hanv.onrender.com";   // ← update after deploying
 
 // ── STATE ──────────────────────────────────────────────────────
 let totalAnalysed = 0;
