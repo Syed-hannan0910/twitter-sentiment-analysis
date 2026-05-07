@@ -1,0 +1,16 @@
+# render.yaml — Render.com deployment config for the Flask API
+# Docs: https://render.com/docs/infrastructure-as-code
+
+services:
+  - type: web
+    name: tweetsense-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && python -c "import nltk; nltk.download('vader_lexicon'); nltk.download('punkt'); nltk.download('stopwords'); nltk.download('punkt_tab')"
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    plan: free
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.11.0"

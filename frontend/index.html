@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TweetSense — Twitter Sentiment Analyser</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ══════════ HEADER ══════════ -->
+  <header class="site-header">
+    <div class="logo">
+      <span class="logo-icon">🐦</span>
+      <span class="logo-text">TweetSense</span>
+      <span class="logo-badge">NLP</span>
+    </div>
+    <nav class="header-nav">
+      <a href="#single" class="nav-link active" data-tab="single">Single Tweet</a>
+      <a href="#batch"  class="nav-link"         data-tab="batch">Batch / CSV</a>
+      <a href="#about"  class="nav-link"         data-tab="about">About & Docs</a>
+    </nav>
+    <div class="api-status">
+      <span class="status-dot" id="statusDot"></span>
+      <span class="status-label" id="statusLabel">Connecting…</span>
+    </div>
+  </header>
+
+  <!-- ══════════ HERO ══════════ -->
+  <section class="hero">
+    <div class="hero-grid-lines"></div>
+    <div class="hero-content">
+      <div class="hero-tag">Powered by NLTK VADER</div>
+      <h1 class="hero-title">Decode the&nbsp;<em>emotion</em><br/>behind every tweet.</h1>
+      <p class="hero-sub">Paste any tweet, upload a CSV, or run batch analysis — get instant positive / negative / neutral classification with confidence scores.</p>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-card"><span class="stat-num" id="statTotal">0</span><span class="stat-label">Tweets Analysed</span></div>
+      <div class="stat-card"><span class="stat-num" id="statPos">—</span><span class="stat-label">Positive Rate</span></div>
+      <div class="stat-card"><span class="stat-num" id="statNeg">—</span><span class="stat-label">Negative Rate</span></div>
+    </div>
+  </section>
+
+  <!-- ══════════ MAIN ══════════ -->
+  <main class="main-content">
+
+    <!-- ── TAB: Single Tweet ── -->
+    <section class="tab-pane active" id="tab-single">
+      <div class="two-col">
+
+        <div class="panel input-panel">
+          <h2 class="panel-title">Analyse a Tweet</h2>
+          <p class="panel-hint">Paste any tweet — emojis, hashtags, and slang are all understood.</p>
+
+          <div class="textarea-wrap">
+            <textarea
+              id="tweetInput"
+              class="tweet-input"
+              maxlength="280"
+              placeholder="e.g. Just adopted a puppy! My heart is SO full of joy right now! 🐶❤️"
+            ></textarea>
+            <div class="char-count"><span id="charCount">0</span> / 280</div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn btn-primary" id="analyseBtn">Analyse Sentiment</button>
+            <button class="btn btn-ghost"   id="clearBtn">Clear</button>
+          </div>
+
+          <div class="example-tweets">
+            <p class="examples-label">Try an example:</p>
+            <div class="example-chips">
+              <button class="chip" data-tweet="I absolutely love this new phone! Best purchase I've ever made 😍 #tech #amazing">😍 Positive</button>
+              <button class="chip" data-tweet="The customer service at this airline is absolutely terrible. Lost my luggage AGAIN 😡">😡 Negative</button>
+              <button class="chip" data-tweet="Just had my morning coffee. Starting the day slow today.">☕ Neutral</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel result-panel" id="resultPanel">
+          <div class="result-placeholder" id="resultPlaceholder">
+            <div class="placeholder-icon">📊</div>
+            <p>Your sentiment result will appear here.</p>
+          </div>
+
+          <div class="result-content hidden" id="resultContent">
+            <div class="result-header">
+              <span class="result-emoji" id="resultEmoji">😊</span>
+              <div>
+                <div class="result-label" id="resultLabel">positive</div>
+                <div class="result-confidence" id="resultConfidence">Confidence: —</div>
+              </div>
+            </div>
+
+            <div class="score-bars">
+              <div class="score-row">
+                <span class="score-name pos">Positive</span>
+                <div class="bar-track"><div class="bar-fill pos" id="barPos"></div></div>
+                <span class="score-val" id="valPos">0%</span>
+              </div>
+              <div class="score-row">
+                <span class="score-name neg">Negative</span>
+                <div class="bar-track"><div class="bar-fill neg" id="barNeg"></div></div>
+                <span class="score-val" id="valNeg">0%</span>
+              </div>
+              <div class="score-row">
+                <span class="score-name neu">Neutral</span>
+                <div class="bar-track"><div class="bar-fill neu" id="barNeu"></div></div>
+                <span class="score-val" id="valNeu">0%</span>
+              </div>
+            </div>
+
+            <div class="compound-row">
+              <span class="compound-label">Compound Score</span>
+              <div class="compound-track">
+                <div class="compound-needle" id="compoundNeedle"></div>
+              </div>
+              <div class="compound-scale">
+                <span>−1 (Very Neg)</span>
+                <span>0</span>
+                <span>+1 (Very Pos)</span>
+              </div>
+              <span class="compound-val" id="compoundVal">0.000</span>
+            </div>
+
+            <div class="keywords-row" id="keywordsRow">
+              <span class="kw-label">Key Words</span>
+              <div class="kw-chips" id="kwChips"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── TAB: Batch / CSV ── -->
+    <section class="tab-pane hidden" id="tab-batch">
+      <div class="two-col">
+
+        <div class="panel">
+          <h2 class="panel-title">Batch Analysis</h2>
+          <p class="panel-hint">Upload a CSV with a <code>text</code> column, or paste multiple tweets below.</p>
+
+          <!-- CSV upload -->
+          <div class="upload-zone" id="uploadZone">
+            <div class="upload-icon">📂</div>
+            <p>Drop a <strong>.csv</strong> file here, or <label for="csvFile" class="upload-link">browse</label></p>
+            <input type="file" id="csvFile" accept=".csv" hidden />
+            <p class="upload-hint">Must contain a <code>text</code> column. Max 500 rows.</p>
+          </div>
+
+          <div class="divider-or"><span>or paste tweets</span></div>
+
+          <textarea
+            id="batchInput"
+            class="tweet-input"
+            rows="6"
+            placeholder="One tweet per line&#10;This product is amazing!&#10;Worst experience ever.&#10;Just an ordinary day."
+          ></textarea>
+
+          <button class="btn btn-primary full-w" id="batchBtn">Run Batch Analysis</button>
+        </div>
+
+        <div class="panel">
+          <h2 class="panel-title">Batch Results</h2>
+          <div id="batchResults" class="batch-placeholder">
+            <div class="placeholder-icon">📋</div>
+            <p>Upload a CSV or paste tweets to see aggregated results here.</p>
+          </div>
+          <!-- Charts injected by JS -->
+          <div id="batchCharts" class="hidden">
+            <div class="summary-cards" id="summaryCards"></div>
+            <div class="chart-grid">
+              <div class="chart-wrap">
+                <canvas id="doughnutChart"></canvas>
+              </div>
+              <div class="chart-wrap">
+                <canvas id="barChart"></canvas>
+              </div>
+            </div>
+            <div class="results-table-wrap">
+              <table class="results-table" id="resultsTable">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Tweet (truncated)</th>
+                    <th>Sentiment</th>
+                    <th>Compound</th>
+                    <th>Confidence</th>
+                  </tr>
+                </thead>
+                <tbody id="resultsBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── TAB: About ── -->
+    <section class="tab-pane hidden" id="tab-about">
+      <div class="about-grid">
+
+        <div class="about-card tech-card">
+          <h3>🔬 How It Works</h3>
+          <p>TweetSense uses <strong>NLTK's VADER</strong> (Valence Aware Dictionary and sEntiment Reasoner) — an NLP model purpose-built for social media text.</p>
+          <ul>
+            <li>Understands emojis, slang &amp; abbreviations</li>
+            <li>Handles CAPS emphasis (GREAT vs great)</li>
+            <li>Reads punctuation weight (great!!! vs great)</li>
+            <li>Degree modifiers (very good, kind of bad)</li>
+          </ul>
+          <div class="code-block">
+<pre><code>from nltk.sentiment.vader import SentimentIntensityAnalyzer
+
+sia = SentimentIntensityAnalyzer()
+scores = sia.polarity_scores("I love this! 😍")
+# → {neg:0.0, neu:0.294, pos:0.706, compound:0.6249}</code></pre>
+          </div>
+        </div>
+
+        <div class="about-card score-card">
+          <h3>📐 Score Interpretation</h3>
+          <div class="score-guide">
+            <div class="guide-row pos-row">
+              <span class="guide-badge pos">Positive</span>
+              <span>compound ≥ <strong>+0.05</strong></span>
+            </div>
+            <div class="guide-row neg-row">
+              <span class="guide-badge neg">Negative</span>
+              <span>compound ≤ <strong>−0.05</strong></span>
+            </div>
+            <div class="guide-row neu-row">
+              <span class="guide-badge neu">Neutral</span>
+              <span>−0.05 &lt; compound &lt; +0.05</span>
+            </div>
+          </div>
+          <p class="mt-sm">The compound score normalises all VADER signals into a single value between <strong>−1</strong> (most negative) and <strong>+1</strong> (most positive).</p>
+        </div>
+
+        <div class="about-card api-card">
+          <h3>🔌 REST API Reference</h3>
+          <div class="endpoint-list">
+            <div class="endpoint">
+              <span class="method">POST</span>
+              <code>/analyze</code>
+              <span class="ep-desc">Single tweet</span>
+            </div>
+            <div class="endpoint">
+              <span class="method">POST</span>
+              <code>/analyze-batch</code>
+              <span class="ep-desc">JSON array of tweets</span>
+            </div>
+            <div class="endpoint">
+              <span class="method">POST</span>
+              <code>/analyze-csv</code>
+              <span class="ep-desc">Multipart CSV upload</span>
+            </div>
+            <div class="endpoint">
+              <span class="method get">GET</span>
+              <code>/health</code>
+              <span class="ep-desc">Health check</span>
+            </div>
+          </div>
+          <div class="code-block">
+<pre><code># curl example
+curl -X POST https://your-api.render.com/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"text": "This is amazing! 🎉"}'</code></pre>
+          </div>
+        </div>
+
+        <div class="about-card learn-card">
+          <h3>📚 Learning Resources</h3>
+          <div class="resource-list">
+            <a class="resource" href="https://www.nltk.org/howto/sentiment.html" target="_blank">
+              <span class="res-icon">📖</span>
+              <div><strong>NLTK Sentiment Guide</strong><span>Official VADER documentation</span></div>
+            </a>
+            <a class="resource" href="https://spacy.io/usage/linguistic-features" target="_blank">
+              <span class="res-icon">🌐</span>
+              <div><strong>SpaCy NLP Features</strong><span>Entity recognition &amp; POS tagging</span></div>
+            </a>
+            <a class="resource" href="https://towardsdatascience.com/sentimental-analysis-using-vader-a3415fef7664" target="_blank">
+              <span class="res-icon">🎓</span>
+              <div><strong>VADER Deep Dive</strong><span>Tutorial on Towards Data Science</span></div>
+            </a>
+            <a class="resource" href="https://render.com/docs/deploy-flask" target="_blank">
+              <span class="res-icon">🚀</span>
+              <div><strong>Deploy Flask on Render</strong><span>Free hosting for your API</span></div>
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Loading overlay -->
+  <div class="loading-overlay hidden" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <p class="loading-text">Analysing sentiment…</p>
+  </div>
+
+  <footer class="site-footer">
+    <span>TweetSense · Built with NLTK VADER · MIT License</span>
+    <a href="https://github.com/YOUR_USERNAME/twitter-sentiment-analysis" target="_blank">⭐ GitHub</a>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
