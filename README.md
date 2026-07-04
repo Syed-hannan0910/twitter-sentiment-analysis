@@ -99,6 +99,7 @@ twitter-sentiment-analysis/
 │
 ├── data/
 │   └── sample_tweets.csv        # 30 labelled tweets for testing
+│   └── sample_xquik_tweets.csv  # Xquik export example for CSV import tests
 │
 ├── notebooks/
 │   └── sentiment_analysis.ipynb # Jupyter exploration notebook
@@ -317,11 +318,13 @@ Analyse up to 500 tweets at once.
 ---
 
 ### `POST /analyze-csv`
-Upload a CSV file for batch analysis.
+Upload a CSV file for batch analysis. The API accepts the default `text`
+column and auto-detects common Xquik export columns such as `full_text`,
+`tweet_text`, `content`, and `body`.
 
 **Request** — multipart form-data:
 - `file`: your `.csv` file
-- `text_column` *(optional)*: column name with tweet text (default: `text`)
+- `text_column` *(optional)*: column name with tweet text
 
 **CSV Format**
 ```
@@ -329,6 +332,15 @@ id,text,username
 1,"I love this!",@user1
 2,"This is terrible.",@user2
 ```
+
+**Xquik Export Format**
+```
+tweet_id,text,author_username,created_at,likeCount,retweetCount,replyCount,viewCount
+1889000000000000001,"Customers are sharing great feedback.",product_lead,2026-01-15T09:20:00Z,184,42,17,9210
+```
+
+The response includes `text_column` and `row_limit` so frontend clients can
+show which export column was analysed and when the safety cap applies.
 
 ---
 

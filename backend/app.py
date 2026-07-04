@@ -17,6 +17,55 @@ CORS(app)  # Allow all origins for local dev; restrict in production
 
 analyzer = SentimentAnalyzer()
 
+MAX_BATCH_ROWS = 500
+XQUIK_TEXT_COLUMNS = ("text", "full_text", "tweet_text", "content", "body")
+XQUIK_METADATA_COLUMNS = (
+    "id",
+    "tweet_id",
+    "tweetId",
+    "username",
+    "author_username",
+    "authorUsername",
+    "timestamp",
+    "created_at",
+    "createdAt",
+    "likes",
+    "like_count",
+    "likeCount",
+    "retweets",
+    "retweet_count",
+    "retweetCount",
+    "replies",
+    "reply_count",
+    "replyCount",
+    "quotes",
+    "quote_count",
+    "quoteCount",
+    "views",
+    "view_count",
+    "viewCount",
+)
+
+
+def resolve_text_column(fieldnames, requested_column):
+    """Return a usable text column from plain tweet or Xquik export CSVs."""
+    if requested_column:
+        return requested_column if requested_column in fieldnames else None
+
+    for column in XQUIK_TEXT_COLUMNS:
+        if column in fieldnames:
+            return column
+
+    return None
+
+
+def copy_row_metadata(row, result):
+    """Preserve common tweet metadata without requiring a fixed export shape."""
+    for column in XQUIK_METADATA_COLUMNS:
+        value = row.get(column)
+        if value not in (None, ""):
+            result[column] = value
+
 
 @app.route("/", methods=["GET"])
 def index():
@@ -26,7 +75,7 @@ def index():
         "endpoints": {
             "POST /analyze": "Analyze a single tweet",
             "POST /analyze-batch": "Analyze multiple tweets (JSON array)",
-            "POST /analyze-csv": "Upload and analyze a CSV file of tweets",
+            "POST /analyze-csv": "Upload a tweet or Xquik export CSV file",
             "GET  /health": "API health check"
         }
     })
@@ -79,8 +128,8 @@ def analyze_batch():
     if not isinstance(tweets, list) or len(tweets) == 0:
         return jsonify({"error": "'tweets' must be a non-empty array."}), 400
 
-    if len(tweets) > 500:
-        return jsonify({"error": "Batch limit is 500 tweets per request."}), 400
+    if len(tweets) > MAX_BATCH_ROWS:
+        return jsonify({"error": f"Batch limit is {MAX_BATCH_ROWS} tweets per request."}), 400
 
     results = []
     for tweet in tweets:
@@ -95,11 +144,11 @@ def analyze_batch():
 @app.route("/analyze-csv", methods=["POST"])
 def analyze_csv():
     """
-    Upload a CSV file with a 'text' column and get sentiment for each row.
+    Upload a CSV file with tweet text and get sentiment for each row.
 
     Form Data:
-        file: CSV file with at least a 'text' column
-        text_column (optional): column name containing tweet text (default: 'text')
+        file: CSV file with tweet text, including Xquik exports
+        text_column (optional): column name containing tweet text
 
     Returns:
         JSON with per-tweet results and aggregate statistics.
@@ -108,7 +157,7 @@ def analyze_csv():
         return jsonify({"error": "No file uploaded. Use multipart form-data with key 'file'."}), 400
 
     file = request.files["file"]
-    text_column = request.form.get("text_column", "text")
+    requested_text_column = request.form.get("text_column")
 
     if file.filename == "":
         return jsonify({"error": "No file selected."}), 400
@@ -118,30 +167,41 @@ def analyze_csv():
     try:
         content = file.read().decode("utf-8")
         reader = csv.DictReader(io.StringIO(content))
+        fieldnames = reader.fieldnames or []
+        text_column = resolve_text_column(fieldnames, requested_text_column)
 
-        if text_column not in reader.fieldnames:
-            available = list(reader.fieldnames)
+        if not fieldnames:
+            return jsonify({"error": "CSV file does not include a header row."}), 400
+
+        if not text_column:
+            available = list(fieldnames)
             return jsonify({
-                "error": f"Column '{text_column}' not found in CSV.",
-                "available_columns": available
+                "error": "No tweet text column found in CSV.",
+                "available_columns": available,
+                "expected_text_columns": list(XQUIK_TEXT_COLUMNS)
             }), 400
 
         results = []
         for i, row in enumerate(reader):
-            if i >= 500:   # cap for free-tier safety
+            if i >= MAX_BATCH_ROWS:
                 break
             tweet_text = row.get(text_column, "").strip()
             if tweet_text:
                 result = analyzer.analyze(tweet_text)
                 result["text"] = tweet_text
-                # Pass through any extra columns that exist
-                for col in ["id", "username", "timestamp", "likes", "retweets"]:
-                    if col in row:
-                        result[col] = row[col]
+                copy_row_metadata(row, result)
                 results.append(result)
 
+        if not results:
+            return jsonify({"error": "CSV did not contain any non-empty tweet text rows."}), 400
+
         stats = analyzer.aggregate_stats(results)
-        return jsonify({"results": results, "statistics": stats}), 200
+        return jsonify({
+            "results": results,
+            "statistics": stats,
+            "text_column": text_column,
+            "row_limit": MAX_BATCH_ROWS
+        }), 200
 
     except Exception as e:
         return jsonify({"error": f"Failed to process CSV: {str(e)}"}), 500
